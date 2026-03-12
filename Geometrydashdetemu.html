@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Geometry Dash: Bloodbath Fix Final</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; user-select: none; }
+        canvas { display: block; }
+        #menu { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.9); z-index: 100; 
+        }
+        h1 { color: #fff; font-size: 60px; text-shadow: 0 0 20px #f00; margin-bottom: 30px; }
+        .btn { 
+            padding: 25px 50px; margin: 15px; font-size: 28px; cursor: pointer; 
+            border: 4px solid #fff; border-radius: 15px; color: white; font-weight: bold;
+            transition: 0.2s; width: 400px; text-transform: uppercase;
+        }
+        #btn-easy { background: #27ae60; box-shadow: 0 5px #1e8449; }
+        #btn-demon { background: #c0392b; box-shadow: 0 5px #922b21; }
+        .btn:active { transform: translateY(4px); box-shadow: 0 1px #666; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-size: 35px; display: none; z-index: 50; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">PUNTOS: 0</div>
+    
+    <div id="menu">
+        <h1 id="title">SELECT LEVEL</h1>
+        <button id="btn-easy" class="btn">STEREO MADNESS</button>
+        <button id="btn-demon" class="btn">BLOODBATH</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let gravity = 0.85;
+let gameRunning = false;
+let score = 0;
+let diff = 'easy';
+let player, obstacles, frames;
+
+class Player {
+    constructor() {
+        this.size = 50;
+        this.x = 150;
+        this.y = canvas.height - 150;
+        this.vy = 0;
+        this.jump = -16;
+        this.rot = 0;
+    }
+    update() {
+        this.vy += gravity;
+        this.y += this.vy;
+        if(this.y > canvas.height - 100 - this.size) {
+            this.y = canvas.height - 100 - this.size;
+            this.vy = 0;
+            this.rot = Math.round(this.rot/90)*90;
+        } else { this.rot += 10; }
+    }
+    draw() {
+        ctx.save();
+        ctx.translate(this.x + 25, this.y + 25);
+        ctx.rotate(this.rot * Math.PI/180);
+        ctx.fillStyle = (diff === 'demon') ? '#f00' : '#0ff';
+        ctx.fillRect(-25, -25, 50, 50);
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(-25, -25, 50, 50);
+        ctx.restore();
+    }
+}
+
+class Obstacle {
+    constructor() {
+        this.w = 40;
+        this.h = 65;
+        this.x = canvas.width;
+        this.speed = (diff === 'demon') ? 15 : 10;
+        this.triple = (diff === 'demon');
+    }
+    update() { this.x -= this.speed; }
+    draw() {
+        ctx.fillStyle = (diff === 'demon') ? '#600' : '#f39';
+        let num = this.triple ? 3 : 1;
+        for(let i=0; i<num; i++) {
+            let ox = this.x + (i*38);
+            ctx.beginPath();
+            ctx.moveTo(ox, canvas.height-100);
+            ctx.lineTo(ox+20, canvas.height-100-this.h);
+            ctx.lineTo(ox+40, canvas.height-100);
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+}
+
+function startGame(selectedDiff) {
+    diff = selectedDiff;
+    player = new Player();
+    obstacles = [];
+    frames = 0;
+    score = 0;
+    gameRunning = true;
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('ui').style.display = 'block';
+    document.getElementById('ui').innerText = "PUNTOS: 0";
+    loop();
+}
+
+function loop() {
+    if(!gameRunning) return;
+    ctx.fillStyle = (diff === 'demon') ? '#1a0000' : '#000022';
+    ctx.fillRect(0,0,canvas.width, canvas.height);
+    
+    // Suelo
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, canvas.height-100, canvas.width, 100);
+    ctx.strokeStyle = "#fff";
+    ctx.strokeRect(0, canvas.height-100, canvas.width, 4);
+    
+    player.update();
+    player.draw();
+
+    let rate = (diff === 'demon' ? 45 : 75);
+    if(frames % rate === 0) obstacles.push(new Obstacle());
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        let obs = obstacles[i];
+        obs.update();
+        obs.draw();
+        
+        let hitW = obs.triple ? 120 : 40;
+        // Colisión ajustada
+        if(player.x < obs.x + hitW - 10 && player.x + 40 > obs.x + 10 && player.y + 40 > canvas.height - 100 - obs.h) {
+            gameRunning = false;
+            setTimeout(() => location.reload(), 500);
+        }
+        
+        if(obs.x + hitW < 0) {
+            obstacles.splice(i, 1);
+            score++;
+            document.getElementById('ui').innerText = "PUNTOS: " + score;
+        }
+    }
+
+    frames++;
+    requestAnimationFrame(loop);
+}
+
+// ARREGLO DE BOTONES CON EVENT LISTENERS DIRECTOS
+document.getElementById('btn-easy').addEventListener('click', () => startGame('easy'));
+document.getElementById('btn-demon').addEventListener('click', () => startGame('demon'));
+
+// SALTO
+const jumpAction = () => { if(gameRunning && player.vy === 0) player.vy = player.jump; };
+window.addEventListener('keydown', (e) => { if(e.code === 'Space') jumpAction(); });
+window.addEventListener('mousedown', jumpAction);
+
+</script>
+</body>
+</html>
